@@ -1,0 +1,5 @@
+วิธีแก้ปัญหาภาษาไทยเป็นตัวต่างดาว
+
+1) ถ้าเปิดไฟล์ Excel .xlsx ใน Excel แล้วภาษาไทยเพี้ยน ให้ใช้ไฟล์ .xlsx ในโฟลเดอร์ excel แทน
+2) ถ้าต้องเปิด Excel .xlsx ให้ไปที่ Excel > Data > From Text/Excel .xlsx > เลือก Encoding: UTF-8
+3) โค้ด streamlit_app.py และไฟล์คู่มือถูกบันทึกเป็น UTF-8 with BOM แล้ว เพื่อให้ Windows อ่านภาษาไทยได้ง่ายขึ้น
