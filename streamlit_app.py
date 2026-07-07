@@ -592,33 +592,67 @@ def page_collect(boxes, collections):
 
 
 def page_missing(boxes, missing):
-    st.title("🚨 แจ้งกล่องหาย")
-    row = select_box_widget(boxes, "เลือกกล่องที่หาย", key="missing_select")
-    if row is None:
-        st.warning("ไม่พบข้อมูลกล่อง")
-        return
-    with st.form("missing_form"):
-        found_date = st.date_input("วันที่ตรวจพบ", value=date.today())
-        contact_date = st.date_input("วันที่ติดต่อร้าน", value=date.today())
-        contact_person = st.text_input("ผู้ให้ข้อมูล/ผู้ติดต่อ")
-        google_maps_url = st.text_input("ลิงก์ Google Maps จุดที่ตรวจพบ", value=row.get("google_maps_url", ""))
-        detail = st.text_area("รายละเอียดเหตุการณ์")
-        case_status = st.selectbox("สถานะเคส", ["รอตรวจสอบ", "กำลังติดตาม", "ปิดเคส", "ต้องวางใหม่"])
-        photo = st.camera_input("ถ่ายภาพจุดวางเดิม")
-        submit = st.form_submit_button("💾 บันทึกแจ้งกล่องหาย")
-    if submit:
-        photo_url = upload_photo(photo, f"missing_{row['box_id']}")
-        new = {
-            "report_id": uuid.uuid4().hex[:12], "box_id": row["box_id"], "store_name": row["store_name"],
-            "found_date": found_date.isoformat(), "contact_date": contact_date.isoformat(), "contact_person": contact_person,
-            "detail": detail, "photo_url": photo_url, "google_maps_url": google_maps_url, "case_status": case_status,
-            "created_by": st.session_state.get("username", ""), "created_at": datetime.now().isoformat(timespec="seconds")
-        }
-        save_missing(pd.concat([missing, pd.DataFrame([new])], ignore_index=True))
-        b = boxes.copy(); b.loc[b["box_id"].astype(str) == str(row["box_id"]), "status"] = "กล่องหาย"; save_boxes(b)
-        green_success("บันทึกแจ้งกล่องหายเรียบร้อยแล้ว")
-    st.subheader("รายการแจ้งกล่องหาย")
-    st.dataframe(missing, use_container_width=True, hide_index=True)
+    st.title("🚨 กล่องหาย / กล่องคืน")
+    tab_missing, tab_return, tab_list = st.tabs(["แจ้งกล่องหาย", "บันทึกกล่องคืน", "รายการติดตาม"])
+    with tab_missing:
+        row = select_box_widget(boxes, "เลือกกล่องที่หาย", key="missing_select")
+        if row is None:
+            st.warning("ไม่พบข้อมูลกล่อง")
+            return
+        with st.form("missing_form"):
+            found_date = st.date_input("วันที่ตรวจพบ", value=date.today())
+            contact_date = st.date_input("วันที่ติดต่อร้าน", value=date.today())
+            contact_person = st.text_input("ผู้ให้ข้อมูล/ผู้ติดต่อ")
+            google_maps_url = st.text_input("ลิงก์ Google Maps จุดที่ตรวจพบ", value=row.get("google_maps_url", ""))
+            detail = st.text_area("รายละเอียดเหตุการณ์")
+            case_status = st.selectbox("สถานะเคส", ["รอตรวจสอบ", "กำลังติดตาม", "ปิดเคส", "ต้องวางใหม่"])
+            photo = st.camera_input("ถ่ายภาพจุดวางเดิม")
+            submit = st.form_submit_button("💾 บันทึกแจ้งกล่องหาย")
+        if submit:
+            photo_url = upload_photo(photo, f"missing_{row['box_id']}")
+            new = {
+                "report_id": uuid.uuid4().hex[:12], "box_id": row["box_id"], "store_name": row["store_name"],
+                "found_date": found_date.isoformat(), "contact_date": contact_date.isoformat(), "contact_person": contact_person,
+                "detail": detail, "photo_url": photo_url, "google_maps_url": google_maps_url, "case_status": case_status,
+                "created_by": st.session_state.get("username", ""), "created_at": datetime.now().isoformat(timespec="seconds")
+            }
+            save_missing(pd.concat([missing, pd.DataFrame([new])], ignore_index=True))
+            b = boxes.copy(); b.loc[b["box_id"].astype(str) == str(row["box_id"]), "status"] = "กล่องหาย"; save_boxes(b)
+            green_success("บันทึกแจ้งกล่องหายเรียบร้อยแล้ว")
+    with tab_return:
+        missing_boxes = boxes[boxes["status"].astype(str).str.contains("หาย", na=False)]
+        if len(missing_boxes) == 0:
+            st.success("ยังไม่มีกล่องสถานะหาย")
+        else:
+            row2 = select_box_widget(missing_boxes, "เลือกกล่องที่พบคืน", key="return_select")
+            with st.form("return_form"):
+                return_date = st.date_input("วันที่พบ/รับคืน", value=date.today())
+                return_detail = st.text_area("รายละเอียดการคืนกล่อง", placeholder="เช่น ร้านพบกล่องแล้ว / นำกลับมาตรวจสอบ / วางคืนที่เดิม")
+                return_photo = st.camera_input("ถ่ายภาพกล่องที่พบคืน")
+                ok_return = st.form_submit_button("💾 บันทึกกล่องคืน")
+            if ok_return and row2 is not None:
+                photo_url = upload_photo(return_photo, f"return_{row2['box_id']}")
+                new = {
+                    "report_id": uuid.uuid4().hex[:12], "box_id": row2["box_id"], "store_name": row2["store_name"],
+                    "found_date": return_date.isoformat(), "contact_date": return_date.isoformat(), "contact_person": st.session_state.get("display_name", ""),
+                    "detail": return_detail, "photo_url": photo_url, "google_maps_url": row2.get("google_maps_url", ""), "case_status": "คืนกล่องแล้ว",
+                    "created_by": st.session_state.get("username", ""), "created_at": datetime.now().isoformat(timespec="seconds")
+                }
+                save_missing(pd.concat([missing, pd.DataFrame([new])], ignore_index=True))
+                b = boxes.copy()
+                idx = b.index[b["box_id"].astype(str) == str(row2["box_id"])]
+                if len(idx):
+                    b.loc[idx[0], "status"] = "ใช้งาน"
+                    b.loc[idx[0], "updated_by"] = st.session_state.get("username", "")
+                    b.loc[idx[0], "updated_at"] = datetime.now().isoformat(timespec="seconds")
+                    if photo_url:
+                        b.loc[idx[0], "box_photo_url"] = photo_url
+                save_boxes(b)
+                green_success("บันทึกการคืนกล่องเรียบร้อยแล้ว")
+    with tab_list:
+        st.subheader("รายการแจ้งกล่องหาย/คืน")
+        st.dataframe(missing.sort_values("created_at", ascending=False) if len(missing) else missing, use_container_width=True, hide_index=True)
+        st.download_button("⬇️ ดาวน์โหลดรายการกล่องหาย/คืน", missing.to_csv(index=False, encoding="utf-8-sig"), "missing_return_reports.csv", "text/csv")
 
 
 def box_form(default=None, form_key="box_form"):
@@ -665,8 +699,12 @@ def box_form(default=None, form_key="box_form"):
 
 
 def page_manage_boxes(boxes):
-    st.title("➕ เพิ่ม / ✏️ แก้ไข / 🗑️ ลบกล่อง")
-    tab_add, tab_edit, tab_delete = st.tabs(["เพิ่มกล่องใหม่", "แก้ไขข้อมูลกล่อง", "ลบกล่อง"])
+    st.title("📍 วางกล่องใหม่ / จัดการกล่อง")
+    if st.session_state.get("role") != "admin":
+        st.warning("หน้านี้สำหรับผู้ดูแลระบบเท่านั้น")
+        return
+    st.markdown("<div class='warning-box'>ใช้หน้านี้สำหรับวางกล่องใหม่ และจัดการ เพิ่ม / แก้ไข / ลบ รายการกล่อง</div>", unsafe_allow_html=True)
+    tab_add, tab_edit, tab_delete = st.tabs(["➕ วางกล่องใหม่", "✏️ แก้ไขข้อมูลกล่อง", "🗑️ ลบกล่อง"])
     with tab_add:
         new = box_form(default={"box_id": f"BOX-{len(boxes)+1:04d}"}, form_key="add_box_form")
         if new:
@@ -929,12 +967,15 @@ def main():
             st.session_state.role = "user"
             st.rerun()
         st.divider()
-        menu_items = [
-            "Dashboard", "รายการกล่อง", "แผนที่ GPS", "บันทึกการเก็บ", "แจ้งกล่องหาย",
-            "เพิ่ม/แก้ไข/ลบกล่อง", "อัปโหลดรายการกล่อง", "จัดโซนการเดินทาง", "รายงาน/ดาวน์โหลด"
-        ]
         if st.session_state.get("role") == "admin":
-            menu_items.append("บัญชีผู้ใช้")
+            menu_items = [
+                "Dashboard", "รายการกล่อง", "แผนที่ GPS", "บันทึกการเก็บ", "กล่องหาย/คืน",
+                "วางกล่องใหม่", "อัปโหลดรายการกล่อง", "จัดโซนการเดินทาง", "รายงาน/ดาวน์โหลด", "บัญชีผู้ใช้"
+            ]
+        else:
+            menu_items = [
+                "Dashboard", "แผนที่ GPS", "บันทึกการเก็บ", "กล่องหาย/คืน", "จัดโซนการเดินทาง"
+            ]
         menu = st.radio("เมนู", menu_items)
         st.divider()
         st.caption("โหมดข้อมูล")
@@ -950,9 +991,9 @@ def main():
         page_map(boxes, collections)
     elif menu == "บันทึกการเก็บ":
         page_collect(boxes, collections)
-    elif menu == "แจ้งกล่องหาย":
+    elif menu == "กล่องหาย/คืน":
         page_missing(boxes, missing)
-    elif menu == "เพิ่ม/แก้ไข/ลบกล่อง":
+    elif menu == "วางกล่องใหม่":
         page_manage_boxes(boxes)
     elif menu == "อัปโหลดรายการกล่อง":
         page_import(boxes)
